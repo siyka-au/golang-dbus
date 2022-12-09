@@ -138,6 +138,12 @@ type Prop struct {
 	// emitted if this property changes.
 	Emit EmitType
 
+	// If not nil, anytime this property is requested by Get, this function is
+	// called with an appropriate context as its argument. If the returned error
+	// is not nil, it is sent back to the caller of Get and the property is not
+	// returned.
+	GetCallback func(*Context) (interface{}, *dbus.Error)
+
 	// If not nil, anytime this property is changed by Set, this function is
 	// called with an appropriate Change as its argument. If the returned error
 	// is not nil, it is sent back to the caller of Set and the property is not
@@ -164,10 +170,15 @@ func (p *Prop) Introspection(name string) introspect.Property {
 }
 
 // Change represents a change of a property by a call to Set.
-type Change struct {
+type Context struct {
 	Props *Properties
 	Iface string
 	Name  string
+}
+
+// Change represents a change of a property by a call to Set.
+type Change struct {
+	Context
 	Value interface{}
 }
 
@@ -236,6 +247,13 @@ func (p *Properties) Get(iface, property string) (dbus.Variant, *dbus.Error) {
 	prop, ok := m[property]
 	if !ok {
 		return dbus.Variant{}, ErrPropNotFound
+	}
+	if prop.GetCallback != nil {
+		v, err := prop.GetCallback(&Context{p, iface, property})
+		if err != nil {
+			return dbus.Variant{}, err
+		}
+		return dbus.MakeVariant(v), nil
 	}
 	return dbus.MakeVariant(reflect.ValueOf(prop.Value).Elem().Interface()), nil
 }
@@ -325,7 +343,7 @@ func (p *Properties) Set(iface, property string, newv dbus.Variant) *dbus.Error 
 		return ErrInvalidArg
 	}
 	if prop.Callback != nil {
-		err := prop.Callback(&Change{p, iface, property, newv.Value()})
+		err := prop.Callback(&Change{Context{p, iface, property}, newv.Value()})
 		if err != nil {
 			return err
 		}
