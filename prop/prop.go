@@ -3,7 +3,6 @@
 package prop
 
 import (
-	"fmt"
 	"reflect"
 	"sync"
 
@@ -304,7 +303,6 @@ func (p *Properties) set(iface, property string, v interface{}) error {
 	if err != nil {
 		return err
 	}
-	fmt.Println("Emitting for", iface, ":", property)
 	return p.emitChange(iface, property)
 }
 
