@@ -3,6 +3,7 @@
 package prop
 
 import (
+	"fmt"
 	"reflect"
 	"sync"
 
@@ -298,10 +299,12 @@ func (p *Properties) Introspection(iface string) []introspect.Property {
 // must already be locked.
 func (p *Properties) set(iface, property string, v interface{}) error {
 	prop := p.m[iface][property]
+
 	err := dbus.Store([]interface{}{v}, prop.Value)
 	if err != nil {
 		return err
 	}
+	fmt.Println("Emitting for", iface, ":", property)
 	return p.emitChange(iface, property)
 }
 
@@ -326,6 +329,10 @@ func (p *Properties) emitChange(iface, property string) error {
 
 // Set implements org.freedesktop.Properties.Set.
 func (p *Properties) Set(iface, property string, newv dbus.Variant) *dbus.Error {
+	return p.InternalSet(iface, property, newv, false)
+}
+
+func (p *Properties) InternalSet(iface, property string, newv dbus.Variant, skipCallback bool) *dbus.Error {
 	p.mut.Lock()
 	defer p.mut.Unlock()
 	m, ok := p.m[iface]
@@ -342,7 +349,7 @@ func (p *Properties) Set(iface, property string, newv dbus.Variant) *dbus.Error 
 	if newv.Signature() != dbus.SignatureOf(prop.Value) {
 		return ErrInvalidArg
 	}
-	if prop.Callback != nil {
+	if prop.Callback != nil && !skipCallback {
 		err := prop.Callback(&Change{Context{p, iface, property}, newv.Value()})
 		if err != nil {
 			return err
