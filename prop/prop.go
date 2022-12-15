@@ -327,10 +327,10 @@ func (p *Properties) emitChange(iface, property string) error {
 
 // Set implements org.freedesktop.Properties.Set.
 func (p *Properties) Set(iface, property string, newv dbus.Variant) *dbus.Error {
-	return p.InternalSet(iface, property, newv, false)
+	return p.InternalSet(iface, property, newv, false, true)
 }
 
-func (p *Properties) InternalSet(iface, property string, newv dbus.Variant, skipCallback bool) *dbus.Error {
+func (p *Properties) InternalSet(iface, property string, newv dbus.Variant, skipCallback, checkWritable bool) *dbus.Error {
 	p.mut.Lock()
 	defer p.mut.Unlock()
 	m, ok := p.m[iface]
@@ -341,7 +341,7 @@ func (p *Properties) InternalSet(iface, property string, newv dbus.Variant, skip
 	if !ok {
 		return ErrPropNotFound
 	}
-	if !prop.Writable {
+	if !prop.Writable && checkWritable {
 		return ErrReadOnly
 	}
 	if newv.Signature() != dbus.SignatureOf(prop.Value) {
